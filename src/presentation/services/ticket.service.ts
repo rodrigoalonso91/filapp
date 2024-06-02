@@ -1,9 +1,12 @@
 import { UUIDAdapter } from "../../config/uuid.adapter";
 import { type Ticket } from "../../domain";
+import { WssService } from "./wss.service";
 
 export class TicketService {
 
-  constructor() {}
+  constructor(
+    private readonly webSocketService = WssService.instance,
+  ) {}
 
   public tickets: Ticket[] = [
     { id: UUIDAdapter.generateUUID(), number: 1, createdAt: new Date(), done: false },
@@ -38,7 +41,16 @@ export class TicketService {
     };
 
     this.tickets.push(ticket);
+    this.onTicketNumberChanged();
     return ticket;
+  }
+
+  private onTicketNumberChanged() {
+    this.webSocketService.sendMessage('onTicketNumberChanged', this.pendingTickets.length);
+  }
+
+  private onWorkingOnTicketsChanged() {
+    this.webSocketService.sendMessage('onWorkingOnTicketsChanged', this.lastWorkingOnTickets);
   }
 
   public drawTicket(desk: string) {
@@ -51,16 +63,18 @@ export class TicketService {
     ticket.handleAt = new Date();
 
     this.workingOnTickets.unshift({ ...ticket });
+    this.onTicketNumberChanged();
+    this.onWorkingOnTicketsChanged();
 
     return { status: 'ok', ticket };
   }
-
+  
   public finishTicket(ticketId: string) {
 
     const ticket = this.tickets.find(ticket => ticket.id === ticketId);
     if (!ticket) return { status: 'error', message: 'No se encontro el ticket' }
 
-    this.tickets.map(t => {
+    this.tickets =this.tickets.map(t => {
       if (t.id === ticketId) {
         t.handleAt = new Date();
         t.done = true;
